@@ -1,0 +1,826 @@
+---
+title: "November 2020 Georgia Senate Special"
+author: "Kristle Chester"
+date: "11/21/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(maps)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(sf)
+library(purrr)
+library(gganimate)
+library(gifski)
+library(scales)
+library(janitor)
+library(DT)
+## setting working directory. Use an absolute directory. C:/Users/username/...
+knitr::opts_knit$set(root.dir = "")
+
+```
+
+## Birth State (Historic)
+
+```{r us, echo=FALSE, results = FALSE}
+senator_birth <- read.csv("senators_birth.csv", fileEncoding="UTF-8-BOM",header = TRUE)
+
+senator_birth$Birth_State <- tolower(senator_birth$Birth_State)
+
+# Make 0 NA for filtering
+senator_birth[senator_birth == 0] <- NA
+
+# Remove appointed means exactly that. This person was appointed and was not later elected to their seat. Following the Nov 2020 election, Loeffler remains in this appointed category.
+## Remember that Miller and Bacon are only two that actually stood for and won their special elections.
+
+senator_birth <- filter(senator_birth, is.na(Appointed))
+
+sen_sums <- function(frame_n) {
+  aggregate(frame_n$Count, by = list(frame_n$Birth_State), FUN = sum)
+}
+
+senator_birth_all <- sen_sums(senator_birth)
+
+#senator_birth_all = aggregate(senator_birth$Count, by = list(senator_birth$Birth_State), FUN = sum)
+
+# Founding to Civil War
+
+senator_found <- filter(senator_birth, is.na(After.Civil.War))
+
+# Civil War to Present Day
+
+senator_birth_civil <- filter(senator_birth, !is.na(After.Civil.War))
+
+# Civil War to 17th Amendment
+
+senator_civil_17 <- filter(senator_birth_civil, is.na(Popular.Vote))
+
+# Popular Vote and winners
+
+senator_pop <- filter(senator_birth_civil, !is.na(Popular.Vote))
+
+# Sums for each state
+
+senator_found <- sen_sums(senator_found)
+
+senator_birth_civil <- sen_sums(senator_birth_civil)
+senator_civil_17 <- sen_sums(senator_civil_17)
+senator_pop <- sen_sums(senator_pop)
+
+us_map <- map_data("state")
+
+senate_all = us_map %>% left_join(senator_birth_all, c("region" = "Group.1"), copy=FALSE)
+
+senate_civil = us_map %>% left_join(senator_birth_civil, c("region" = "Group.1"), copy=FALSE)
+
+all <- ggplot(data = senate_all, aes(x = long, y = lat, group=group, fill=x))
+
+all1 <- all + geom_polygon(color="gray90", size=0.1) +
+  coord_map(projection = "albers", lat0=39, lat1=45)
+
+all1 + labs(title="Elected Georgia Senators Birth Places Since 1789") +
+  labs(fill="Total")+
+  scale_fill_viridis_c(option="magma", direction = -1, na.value = "gray70") +
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size = 1.254))
+  #scale_fill_gradient(low="#ee6c4d", high="#293241") +
+  ggsave("senator_birth_place_all.png", height = 5.25, width = 7.35)
+
+```
+
+## Post Civil War
+
+```{r civil, echo=FALSE, results = FALSE}
+civil <- ggplot(data = senate_civil, aes(x = long, y = lat, group=group, fill=x))
+
+civil1 <- civil + geom_polygon(color="gray90", size=0.1) +
+  coord_map(projection = "albers", lat0=39, lat1=45)
+
+civil1 + labs(title="Elected Georgia Senator Birth Places Since 1871") +
+  labs(fill="Total")+
+  scale_fill_viridis_c(option="magma", direction = -1, na.value = "gray70") +
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size = 1.254))
+  #scale_fill_gradient(low="#ee6c4d", high="#293241") +
+  ggsave("post_civil_war.png", height = 5.25, width = 7.35)
+
+```
+## Senator Birth Map Sequence
+
+```{r map_seq, echo=FALSE}
+
+# Founders Era to Civil War
+
+senate_found_map <- us_map %>% left_join(senator_found, c("region" = "Group.1"), copy=FALSE)
+
+found_map <- ggplot(data = senate_found_map, aes(x = long, y = lat, group=group, fill=x))
+
+found_map1 <- found_map + geom_polygon(color="gray90", size=0.1) +
+  coord_map(projection = "albers", lat0=39, lat1=45)
+
+found_map1 + labs(title="Elected Georgia Senators Birth State") +
+  labs(subtitle = "Founding (1789) to Civil War (1861)") +
+  labs(fill="Total")+
+  scale_fill_viridis_c(option="magma", direction = -1, na.value = "gray70") +
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size = 1.254), plot.subtitle = element_text(hjust = 0.5))
+  ggsave("founding_to_civil.png", height = 5.25, width = 7.35)
+
+# Post-Civil War Until the 17th Amendment (Popular Vote!)
+
+senate_civil_17_map <- us_map %>% left_join(senator_civil_17, c("region" = "Group.1"), copy=FALSE)
+
+
+civil_17_map <- ggplot(data = senate_civil_17_map, aes(x = long, y = lat, group=group, fill=x))
+
+civil_17_map1 <- civil_17_map + geom_polygon(color="gray90", size=0.1) +
+  coord_map(projection = "albers", lat0=39, lat1=45)
+
+civil_17_map1 + labs(title="Elected Georgia Senators Birth State") +
+  labs(subtitle = "Post-Reconstruction (1871) to 17th Amendment Ratification (1913)") +
+  labs(fill="Total")+
+  scale_fill_viridis_c(option="magma", direction = -1, na.value = "gray70") +
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size = 1.254), plot.subtitle = element_text(hjust = 0.5))
+  ggsave("civil_to_pop.png", height = 5.25, width = 7.35)
+
+# Popular Vote
+senate_pop_map <- us_map %>% left_join(senator_pop, c("region" = "Group.1"), copy=FALSE)
+
+
+pop_map <- ggplot(data = senate_pop_map, aes(x = long, y = lat, group=group, fill=x))
+
+pop_map1 <- pop_map + geom_polygon(color="gray90", size=0.1) +
+  coord_map(projection = "albers", lat0=39, lat1=45)
+
+pop_map1 + labs(title="Elected Georgia Senators Birth States") +
+  labs(subtitle = "Popular Vote (1913) to Present Day") +
+  labs(fill="Total")+
+  scale_fill_viridis_c(option="magma", direction = -1, na.value = "gray70") +
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size = 1.254), plot.subtitle = element_text(hjust = 0.5))
+  ggsave("pop_vote.png", height = 5.25, width = 7.35)
+
+```
+
+## Animated Birthplace Map
+
+```{r animated_map, echo=FALSE, warning=FALSE, message=FALSE}
+
+states <- c(
+  "Founding (1783) to Civil War (1861)",
+  "Post-Reconstruction (1871) to 17th Amendment Ratification (1913)",
+  "Popular Vote (1913) to Present Day"
+)
+
+senate_found_map$state <- states[1]
+senate_civil_17_map$state <- states[2]
+senate_pop_map$state <- states[3]
+
+
+sen_birth_map <- rbind(senate_found_map[, names(senate_found_map)],
+                       senate_civil_17_map[, names(senate_civil_17_map)],
+                       senate_pop_map[, names(senate_pop_map)]
+  
+)
+
+sen_birth_map$state <- factor(sen_birth_map$state, levels = states)
+
+sen_birth_anim <- ggplot(sen_birth_map) +
+  aes(x = long, y=lat, group=group, fill=x) +
+  geom_polygon(color="gray90", size=0.1) +
+  coord_map(projection = "albers", lat0=39, lat1=45) +
+  theme_void() +
+  scale_fill_viridis_c(option="magma", direction = -1, na.value = "gray70") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size = 24), plot.subtitle = element_text(hjust = 0.5, size=18)) +
+  labs(title="Elected Georgia Senators Birth State") +
+  labs(subtitle = "{closest_state}") +
+  labs(fill="Total") +
+  transition_states(state, transition_length = 1, state_length = 10) +
+  enter_fade() +
+  exit_fade()
+
+animate(sen_birth_anim, width=2040, height=1457, res=150, renderer = gifski_renderer())
+anim_save("senator_birth_state.gif")
+
+```
+
+
+```{r election_results, echo=FALSE}
+
+# DATA PULLED FROM https://results.enr.clarityelections.com/GA/105369/web.264614/#/summary 11-21-2020 @ 6:30 PM. Certified results
+
+# Remove senator birth state frames
+
+rm(senator_birth, senator_birth_all, senator_found, senator_birth_civil, senator_civil_17, senator_pop, senate_all, senate_civil, senate_found_map, senate_civil_17_map, senate_pop_map, states)
+
+# See Jens von Bergmann at for random_round https://github.com/mountainMath/dotdensity/blob/master/R/dot-density.R
+random_round <- function(x) {
+    v=as.integer(x)
+    r=x-v
+    test=runif(length(r), 0.0, 1.0)
+    add=rep(as.integer(0),length(r))
+    add[r>test] <- as.integer(1)
+    value=v+add
+    ifelse(is.na(value) | value<0,0,value)
+    return(value)
+}
+
+elec <- read.csv("senate_special.csv", fileEncoding="UTF-8-BOM",header = TRUE)
+
+elec$County <- tolower(elec$County)
+
+# Fix De Kalb county. Map uses space. SecState doesn't. Remove totals from columns.
+
+elec <- elec %>%
+  mutate(County = str_replace(County, "dekalb", "de kalb"))
+
+elec <- elec[-c(160),]
+
+# Create IDs
+elec$id <- paste("georgia", elec$County, sep=",")
+
+#elec$County <- NULL
+
+# Get the Candidate Names
+
+cand <- read.csv("candidates.csv", fileEncoding = "UTF-8-BOM", header=TRUE)
+
+#senator_name <- senator_birth %>%
+ # mutate(last_name = word(.$Senator, -1), first_name = word(.$Senator, 1))
+cand_details <- cand %>%
+  mutate(first_name = word(.$Candidates, 1), last_name = word(.$Candidates, -2) , party = word(.$Candidates, -1)) %>%
+  mutate(party = str_remove(party, "[(]")) %>%
+  mutate(party = str_remove(party, "[)]"))
+
+replace_name <- cand_details[,3]
+
+cand_details$index_hold <- seq.int(nrow(cand_details))
+
+cand_details$index <- cand_details$index_hold + 1
+
+cand_details$index_hold <- NULL
+
+rm(cand)
+
+#results$Total <- rowSums(results[2:22])
+
+replace_name <- prepend(replace_name, "id", before =1)
+
+replace_name <- append(replace_name, "Total", after = 21)
+
+results_all <- elec[, c(103, 6, 11, 16, 21, 26, 31, 36, 41,46, 51, 56, 61, 66, 71, 76, 81, 86, 91, 96, 101, 102)]
+
+names(results_all) <- replace_name
+
+rm(replace_name)
+
+results_all[2:22] <- lapply(results_all[2:22], as.numeric)
+
+# Aggregate by Party
+
+dem <- cand_details %>%
+  filter(party == "Dem")
+
+dem_list <- dem[,5]
+
+rep <- cand_details %>%
+  filter(party == "Rep")
+
+rep_list <- rep[,5]
+
+ind <- cand_details %>%
+  filter(party == "Ind")
+
+ind_list <- ind[,5]
+
+lib <- cand_details %>%
+  filter(party == "Lib")
+
+lib_list <- lib[,5]
+
+by_party <- as.data.frame(results_all) %>%
+  select(id, Total) %>%
+  mutate(Democratic = rowSums(results_all[dem_list]),
+         Republican = rowSums(results_all[rep_list]),
+         Independent = rowSums(results_all[ind_list]),
+         Libertarian = rowSums(results_all[lib_list]))
+
+
+by_party2 <- as.data.frame(by_party)
+# Filter Atlanta by Party
+
+atl_by_party <- as.data.frame(by_party) %>%
+  filter(id == "georgia,cherokee" | id == "georgia,clayton" | id == "georgia,cobb" | id == "georgia,de kalb" | id == "georgia,douglas" | id == "georgia,fayette" | id == "georgia,fulton" | id == "georgia,gwinnett" | id == "georgia,henry" | id == "georgia,rockdale") %>%
+  adorn_totals("row")
+
+# Subset Data
+
+# Counties ewer than 5,000
+less_than_5 <- as.data.frame(by_party) %>%
+  filter(Total <= 5000) %>%
+  adorn_totals("row")
+
+
+# Counties fewer than 10,000
+
+less_than_10 <- as.data.frame(by_party) %>%
+  filter(Total <= 10000) %>%
+  adorn_totals("row")
+
+# Counties fewer than 20,000
+
+less_than_15 <- as.data.frame(by_party) %>%
+  filter(Total <= 15000) %>%
+  adorn_totals("row")
+
+# Add totals to by_party (moved below atl_by_party due to error)
+by_party <- by_party %>% adorn_totals("row")
+
+# Small Counties as Percent GA Total
+
+percent_less_5 <- less_than_5$Total[45] / by_party$Total[160]
+
+percent_less_10 <- less_than_10$Total[76] / by_party$Total[160]
+
+percent_less_15 <- less_than_15$Total[102] / by_party$Total[160]
+
+# Republican Vote Percentage Small Counties
+
+rep_percent_less_5 <- less_than_5$Republican[45] / by_party$Republican[160]
+
+rep_percent_less_10 <- less_than_10$Republican[76] / by_party$Republican[160]
+
+rep_percent_less_15 <- less_than_15$Republican[102] / by_party$Republican[160]
+
+# Democrat Vote Percentage Small Counties
+dem_percent_less_5 <- less_than_5$Democratic[45] / by_party$Democratic[160]
+
+dem_percent_less_10 <- less_than_10$Democratic[76] / by_party$Democratic[160]
+
+dem_percent_less_15 <- less_than_15$Democratic[102] / by_party$Democratic[160]
+
+# ATL Percentage of GA's Total Vote
+
+atl_percent_total <- atl_by_party$Total[11] / by_party$Total[160]
+
+atl_percent_rep <- atl_by_party$Republican[11] / by_party$Republican[160]
+
+atl_percent_dem <- atl_by_party$Democratic[11] / by_party$Republican[160]
+
+
+percent_scale <- label_percent(
+  accuracy = 0.01
+  )
+
+party_percent <- as.data.frame(by_party) %>%
+  select(id) %>%
+  mutate(Democratic = by_party$Democratic / by_party$Total,
+         Republican = by_party$Republican / by_party$Total,
+         Independent = by_party$Independent / by_party$Total,
+         Libertarian = by_party$Libertarian / by_party$Total
+         )
+
+
+party_percent$Democratic <- percent_scale(party_percent$Democratic)
+party_percent$Republican <- percent_scale(party_percent$Republican)
+party_percent$Independent <- percent_scale(party_percent$Independent)
+party_percent$Libertarian <- percent_scale(party_percent$Libertarian)
+
+# If you ever want to display these on a map, undo this.
+  
+party_percent$id <- str_remove(party_percent$id, "georgia,")
+party_percent$id <- str_to_title(party_percent$id, locale = "en")
+
+atl_by_party$id <- str_remove(atl_by_party$id, "georgia,")
+atl_by_party$id <- str_to_title(atl_by_party$id, locale = "en")
+
+# Filter Atlanta from party_percent
+
+atl_percent <- filter(party_percent, id == "Cherokee" | id == "Clayton" | id == "Cobb" | id == "De Kalb" | id == "Douglas" | id == "Fayette" | id == "Fulton" | id == "Gwinnett" | id == "Henry" | id == "Rockdale")
+
+# Rename id to County for display purposes
+
+county_rename <- function(table_name) {
+  rename(table_name, c(County = id))
+}
+
+party_percent <- county_rename(party_percent)
+atl_percent <- county_rename(atl_percent)
+atl_by_party <- county_rename(atl_by_party)
+
+# Create Non-Atl Tables
+
+by_party_print <- by_party[160,]
+by_party_print$id <- NULL
+
+party_percent_print <- party_percent[160,]
+party_percent_print$County <- NULL
+
+#knitr::kable(by_party_print, "pipe")
+
+datatable(by_party_print)
+
+#knitr::kable(party_percent_print, "pipe")
+
+datatable(party_percent_print)
+
+#knitr::kable(atl_by_party, "pipe")
+
+datatable(atl_by_party)
+
+#knitr:: kable(atl_percent, "pipe")
+
+datatable(atl_percent)
+
+pres_total <- 4998482
+sen_total <- 4952175
+
+sen_pres_percent <- sen_total / pres_total
+spec_pres_percent <- by_party$Total[160]/ pres_total
+spec_sen_percent <- by_party$Total[160]/sen_total
+
+
+```
+
+Extra Calculations:
+
+* Percent Presidential Voters who Also Voted in the Senate Race (Perdue): `r sen_pres_percent`
+* Percent Presidential Voters who Also Voted in the Special Senate Race: `r spec_pres_percent`
+* Percent Senate Race Voters who Also Voted in the Special: `r spec_sen_percent`
+
+Atlanta:
+
+* % Total Statewide Vote: `r atl_percent_total`
+* % Republican Total Statewide Vote: `r atl_percent_rep`
+* % Democratic Total Statewide Vote: `r atl_percent_dem`
+
+
+Small Counties:
+
+* % Total Statewide Vote in Counties with less than 5000 votes: `r percent_less_5`
+* % Total Statewide Vote in Counties with less than 10000 votes: `r percent_less_10`
+* % Total Statewdie Vote in Counties with less than 15000 votes: `r percent_less_15`
+
+Republican
+
+* % Total Statewide Republican Votes Counties with less than 5000 votes: `r rep_percent_less_5`
+* % Total Statewide Republican Votes Counties with less than 10000 votes: `r rep_percent_less_10`
+* % Total Statewide Republican Votes Counties with less than 15000 votes: `r rep_percent_less_15`
+
+Democrat
+
+* % Total Statewide Democratic Votes Counties with less than 5000 votes: `r dem_percent_less_5`
+* % Total Statewide Democratic Votes Counties with less than 10000 votes: `r dem_percent_less_10`
+* % Total Statewide Democratic Votes Counties with less than 15000 votes: `r dem_percent_less_15`
+
+
+
+```{r election, echo=FALSE, results = FALSE, message=FALSE, warning=FALSE}
+# Remove all except Warnock, Loeffler, and Collins
+
+results <- results_all[, c(1, 20, 14, 4, 22)]
+
+#results[5:22] <- NULL
+
+vote_dot <- 500
+
+results <- results %>%
+  mutate(Warnock = Warnock / vote_dot, Loeffler = Loeffler/vote_dot, Collins = Collins/vote_dot, Total = Total/vote_dot) %>%
+  mutate(Warnock = random_round(Warnock), Loeffler = random_round(Loeffler), Collins = random_round(Collins), Total = random_round(Total))
+
+ga <- st_as_sf(maps::map("county", "georgia", plot = FALSE, fill = TRUE))
+colnames(ga)[1] <-"id"
+ga <- ga %>%
+  mutate("county_label" = word(.$id, 2, sep = fixed(","))) %>%
+  mutate("county_label" = str_to_title(.$county_label, local="en"))
+
+
+ga_map <- merge(results, ga, all = TRUE)
+
+ga_map <- st_as_sf(ga_map)
+
+#class(ga_map)
+
+#head(ga_map)
+
+
+# data frame for number of dots per candidate (dropped to the top 3). Due to stupidly small counties, 1 dot per 100, not per 1000.
+
+#w_map <- as.data.frame(ga_map) %>%
+ # select(id:Warnock, geom) %>%
+  #filter(Warnock != 0)
+
+vote_count <- as.data.frame(ga_map) %>%
+  select(Warnock:Total) %>%
+  mutate_all(funs(as.numeric(.)))
+
+
+# Keep following https://www.cultureofinsight.com/post/multivariate-dot-density-maps-in-r-with-sf-ggplot2 tutorial
+# generates data frame with coordinates for each point + what party it is assiciated with
+
+#st_sample(ga_map[1,], size=10, type="random") # This works!
+#st_sample(ga_map[1,], size=ga_map$Warnock[1], type="random")
+
+#which(is.na(ga_map$Warnock))
+
+#which(is.na(ga_map$geom))
+
+
+sf_dots <- map_df(names(vote_count), 
+                  ~ st_sample(ga_map, vote_count[,.x], type = "random") %>% # generate the points in each polygon
+                    st_cast("POINT") %>%                                          # cast the geom set as 'POINT' data
+                    st_coordinates() %>%                                          # pull out coordinates into a matrix
+                    as_tibble() %>%                                               # convert to tibble
+                    setNames(c("lon","lat")) %>%                                  # set column names
+                    mutate(Candidate = .x)                                            # add categorical party variable
+                  ) %>% 
+  slice(sample(1:n())) # once map_df binds rows randomise order to avoid bias in plotting order
+
+wlc_dots <- filter(sf_dots, Candidate == "Warnock" | Candidate == "Loeffler" | Candidate == "Collins")
+
+
+pal <- c("Warnock" = "#1302ff", "Loeffler" = "#ff0a02", "Collins" = "green2")
+
+wlc_map <- ggplot()
+
+wlc_map + geom_sf(data = ga_map, fill="gray90", color="gray10") +
+  geom_point(data = wlc_dots, aes(lon, lat, color = Candidate), alpha=0.7, size = 1.25, stroke = 0, shape = 16) +
+  scale_color_manual(values = pal) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special Election",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("wlc_dots.png")
+
+```
+
+```{r wl, echo=FALSE}
+wl_dots <- filter(sf_dots, Candidate == "Warnock" | Candidate == "Loeffler")
+
+
+pal_wl <- c("Warnock" = "#1302ff", "Loeffler" = "#ff0a02")
+
+ga_wl <- ggplot()
+
+ga_wl + geom_sf(data = ga_map, fill="gray90", color="gray10") +
+  geom_point(data = wl_dots, aes(lon, lat, color = Candidate), alpha = 0.7, size = 1.25, stroke = 0, shape = 16) +
+  scale_color_manual(values = pal_wl) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special Election",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("wl_dots.png")
+
+```
+
+```{r lc, echo=FALSE}
+lc_dots <- filter(sf_dots, Candidate == "Loeffler" | Candidate == "Collins")
+
+
+pal_lc <- c("Loeffler" = "#ff0a02", "Collins" = "green2")
+
+ga_lc <- ggplot()
+
+ga_lc + geom_sf(data = ga_map, fill="gray90", color="gray10") +
+  geom_point(data = lc_dots, aes(lon, lat, color = Candidate), alpha = 0.7, size = 1.25, stroke = 0, shape = 16) +
+  scale_color_manual(values = pal_lc) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special Election",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("lc_dots.png")
+```
+
+```{r total, echo=FALSE}
+
+t_dots <- filter(sf_dots, Candidate == "Total")
+
+
+pal_t <- c("Total" = "chartreuse1") #lightcyan2 snow2 slategray2 lightgoldenrod2
+
+ga_t <- ggplot()
+
+ga_t + geom_sf(data = ga_map, fill="black", color="white") +
+  geom_point(data = t_dots, aes(lon, lat, color = Candidate), alpha = 0.6, size = 1.25, stroke = 0, shape = 16) +
+  scale_color_manual(values = pal_t) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Total Votes by County",
+       subtitle = "Senate Special Election - Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("t_dots.svg")
+ggsave("t_dots.png")
+
+```
+
+```{r atlanta, echo=FALSE, results = FALSE, message=FALSE, warning=FALSE}
+
+atlanta_map <- filter(ga_map, id == "georgia,cherokee" | id == "georgia,clayton" | id == "georgia,cobb" | id == "georgia,de kalb" | id == "georgia,douglas" | id == "georgia,fayette" | id == "georgia,fulton" | id == "georgia,gwinnett" | id == "georgia,henry" | id == "georgia,rockdale")
+
+
+atlanta_vote_count <- as.data.frame(atlanta_map) %>%
+  select(Warnock:Total) %>%
+  mutate_all(funs(as.numeric(.)))
+
+
+all_atlanta_dots <- map_df(names(atlanta_vote_count), 
+                  ~ st_sample(atlanta_map, atlanta_vote_count[,.x], type = "random") %>% # generate the points in each polygon
+                    st_cast("POINT") %>%                                          # cast the geom set as 'POINT' data
+                    st_coordinates() %>%                                          # pull out coordinates into a matrix
+                    as_tibble() %>%                                               # convert to tibble
+                    setNames(c("lon","lat")) %>%                                  # set column names
+                    mutate(Candidate = .x)                                            # add categorical party variable
+                  ) %>% 
+  slice(sample(1:n())) # once map_df binds rows randomise order to avoid bias in plotting order
+
+atlanta_dots <- filter(all_atlanta_dots, Candidate == "Warnock" | Candidate == "Loeffler" | Candidate == "Collins")
+
+atl_ga <- ggplot()
+
+atl_ga + geom_sf(data = atlanta_map, fill="gray90", color="gray10") +
+  geom_point(data = atlanta_dots, aes(lon, lat, color = Candidate), alpha=0.7, size = 1.25, stroke = 0, shape = 16) +
+  geom_sf_label(data = atlanta_map, aes(label = county_label), size = 3, fill=(rgb(255, 255, 255, max = 255, alpha = 200)), label.size =0, label.r=unit(0.25, "lines"), label.padding = unit(0.15, "lines")) +
+  scale_color_manual(values = pal) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special Atlanta Metro Area",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("atl_dots.png")
+
+```
+
+
+```{r party_maps, echo=FALSE, results = FALSE, message=FALSE, warning=FALSE}
+
+by_party_results <- by_party2 %>%
+  mutate(Democratic = Democratic / vote_dot, Republican = Republican/vote_dot) %>%
+  mutate(Democratic = random_round(Democratic), Republican = random_round(Republican))
+
+by_party_map <-merge(by_party_results, ga, all=TRUE)
+
+by_party_map <- st_as_sf(by_party_map)
+
+party_vote_count <- as.data.frame(by_party_map) %>%
+  select(Democratic:Republican) %>%
+  mutate_all(funs(as.numeric(.)))
+
+
+all_party_dots <- map_df(names(party_vote_count), 
+                  ~ st_sample(ga_map, party_vote_count[,.x], type = "random") %>% # generate the points in each polygon
+                    st_cast("POINT") %>%                                          # cast the geom set as 'POINT' data
+                    st_coordinates() %>%                                          # pull out coordinates into a matrix
+                    as_tibble() %>%                                               # convert to tibble
+                    setNames(c("lon","lat")) %>%                                  # set column names
+                    mutate(Party = .x)                                            # add categorical party variable
+                  ) %>% 
+  slice(sample(1:n())) # once map_df binds rows randomise order to avoid bias in plotting order
+
+
+pal_party <- c("Democratic" = "#1302ff", "Republican" = "#ff0a02")
+
+
+party_ga <- ggplot()
+
+party_ga + geom_sf(data = ga_map, fill="gray90", color="gray10") +
+  geom_point(data = all_party_dots, aes(lon, lat, color = Party), alpha=0.4, size = 1.25, stroke = 0, shape = 16) +
+  scale_color_manual(values = pal_party) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special by Major Party",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("party_dots.png")
+
+# Republican Only Map
+
+rep_dots <- filter(all_party_dots, Party == "Republican")
+
+pal_rep <- c("Republican" = "#ff0a02")
+
+rep_ga <- ggplot()
+
+rep_ga + geom_sf(data = ga_map, fill="gray90", color="gray10") +
+  geom_point(data = rep_dots, aes(lon, lat, color = Party), alpha=0.4, size = 1.25, stroke = 0, shape = 16) +
+  scale_color_manual(values = pal_rep) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special - Republican Party Votes",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("republican_dots.png")
+
+# Democratic Party Only Map
+
+dem_dots <- filter(all_party_dots, Party == "Democratic")
+
+dem_rep <- c("Democratic" = "#1302ff")
+
+dem_ga <- ggplot()
+
+dem_ga + geom_sf(data = ga_map, fill="gray90", color="gray10") +
+  geom_point(data = dem_dots, aes(lon, lat, color = Party), alpha=0.4, size = 1.25, stroke = 0, shape = 16) +
+  scale_color_manual(values = dem_rep) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special - Democratic Party Votes",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=18),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10)
+  )
+ggsave("democratic_dots.png")
+```
+
+```{r atl_party, echo=FALSE, results = FALSE, message=FALSE, warning=FALSE}
+
+atl_party_map <- filter(by_party_map, id == "georgia,cherokee" | id == "georgia,clayton" | id == "georgia,cobb" | id == "georgia,de kalb" | id == "georgia,douglas" | id == "georgia,fayette" | id == "georgia,fulton" | id == "georgia,gwinnett" | id == "georgia,henry" | id == "georgia,rockdale")
+
+atl_party_vote_count <- as.data.frame(atl_party_map) %>%
+  select(Democratic:Republican) %>%
+  mutate_all(funs(as.numeric(.)))
+
+
+all_atl_party_dots <- map_df(names(atl_party_vote_count), 
+                  ~ st_sample(atl_party_map, atl_party_vote_count[,.x], type = "random") %>% # generate the points in each polygon
+                    st_cast("POINT") %>%                                          # cast the geom set as 'POINT' data
+                    st_coordinates() %>%                                          # pull out coordinates into a matrix
+                    as_tibble() %>%                                               # convert to tibble
+                    setNames(c("lon","lat")) %>%                                  # set column names
+                    mutate(Candidate = .x)                                            # add categorical party variable
+                  ) %>% 
+  slice(sample(1:n())) # once map_df binds rows randomise order to avoid bias in plotting order
+
+atl_party_ga <- ggplot()
+
+atl_party_ga + geom_sf(data = atl_party_map, fill="gray90", color="gray10") +
+  geom_point(data = all_atl_party_dots, aes(lon, lat, color = Candidate), alpha=0.7, size = 1.25, stroke = 0, shape = 16) +
+  geom_sf_label(data = atl_party_map, aes(label = county_label), size = 3.5, fill=(rgb(255,255,255, max = 255, alpha = 200)), label.size =0, label.r=unit(0.25, "lines"), label.padding = unit(0.15, "lines")) +
+  scale_color_manual(values = pal_party) +
+  coord_sf(crs = 4326, datum = NA) +
+  theme_void() +
+  labs(x = NULL, y = NULL,
+       title = "Georgia Senate Special Atlanta Metro Area",
+       subtitle = "Nov 3, 2020",
+       caption = "1 dot = 500 votes") +
+  guides(color = guide_legend()) +
+  theme(plot.title = element_text(hjust = 0.5, face="bold", size=14),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust=0.5, size=10),
+        legend.position = "none"
+  )
+ggsave("atl_party_dots.png")
+
+```
